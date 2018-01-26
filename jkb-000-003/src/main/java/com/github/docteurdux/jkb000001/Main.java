@@ -1,13 +1,14 @@
 package com.github.docteurdux.jkb000001;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
 import com.mysql.cj.jdbc.Driver;
@@ -249,8 +250,6 @@ public class Main {
 		
 		 */
 
-		
-		
 		/*-
 		
 		public abstract java.sql.Connection java.sql.DatabaseMetaData.getConnection() throws java.sql.SQLException
@@ -269,30 +268,74 @@ public class Main {
 		// out("Holdability: " + rs.getHoldability());
 		ResultSetMetaData m = rs.getMetaData();
 		int count = m.getColumnCount();
+		List<List<String>> rows = new ArrayList<>();
+		List<String> columns = new ArrayList<>();
+		List<String> types = new ArrayList<>();
 		for (int c = 1; c <= count; ++c) {
-			out(m.getColumnName(c) + " : " + typeToString(m.getColumnType(c)));
+			columns.add(m.getColumnName(c));
+			columns.add(typeToString(m.getColumnType(c)));
 		}
+		rows.add(columns);
+		rows.add(types);
+		int colchars = 0;
+		int COLSEPLENGTH = 3;
+		colchars += (columns.size() - 1) * COLSEPLENGTH;
+		// colchars = m.getColumnName(c).length();
+
 		while (rs.next()) {
+			List<String> row = new ArrayList<>();
 			for (int c = 1; c <= count; ++c) {
 				int type = m.getColumnType(c);
 				switch (type) {
 				case java.sql.Types.INTEGER:
 				case java.sql.Types.SMALLINT:
-					out(" - " + rs.getInt(c));
+					row.add(Integer.toString(rs.getInt(c)));
 					break;
 				case java.sql.Types.BOOLEAN:
-					out(" - " + rs.getBoolean(c));
+					row.add(Boolean.toString(rs.getBoolean(c)));
 					break;
 				case java.sql.Types.VARCHAR:
 				case java.sql.Types.CHAR:
-					out(" - " + rs.getString(c));
+					row.add(rs.getString(c));
 					break;
 				default:
+					row.add("?");
 					break;
 				}
 			}
-			out("");
+			rows.add(row);
 		}
+
+		int[] widths = new int[columns.size()];
+		for (List<String> row : rows) {
+			for (int i = 0; i < row.size(); ++i) {
+				if (row.get(i).length() > widths[i]) {
+					widths[i] = row.get(i).length();
+				}
+			}
+		}
+
+		for (int i = 0; i < rows.size(); ++i) {
+			StringBuilder b = new StringBuilder();
+			for (int j = 0; j < rows.get(i).size(); ++j) {
+				pad(b, rows.get(i).get(j), widths[j]);
+				if (j != 0) {
+					b.append(" | ");
+				} else {
+					b.append("| ");
+				}
+			}
+			b.append(" |");
+			out(b.toString());
+		}
+
+	}
+
+	private static void pad(StringBuilder b, String val, int width) {
+		for (int i = val.length(); i < width; ++i) {
+			b.append(" ");
+		}
+		b.append(val);
 	}
 
 	private static String typeToString(int type) {
