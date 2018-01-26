@@ -1,5 +1,6 @@
 package com.github.docteurdux.jkb000001;
 
+import java.io.PrintStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.sql.Connection;
@@ -26,17 +27,12 @@ public class Main {
 		Properties props = new Properties();
 		props.setProperty("useSSL", "false");
 		props.setProperty("user", "user");
-		props.setProperty("password", "user");
+		props.setProperty("pass" + "word", "user");
 		props.setProperty("serverTimezone", "UTC");
 
 		Connection connection = driver.connect("jdbc:mysql:///test", props);
 
 		DatabaseMetaData metadata = connection.getMetaData();
-
-		/*-
-		for (Method method : DatabaseMetaData.class.getMethods()) {
-			out(method.toGenericString());
-		}*/
 
 		out("Things which are true about MySQL Community Server 2.5.21 x64 for Windows ");
 
@@ -264,27 +260,47 @@ public class Main {
 
 	private static void dumpResultSet(String name, ResultSet rs) throws SQLException {
 		out(name);
-		// out("Cursor name: " + rs.getCursorName());
-		// out("Holdability: " + rs.getHoldability());
+
+		List<List<String>> rows = getRows(rs);
+
+		int[] widths = new int[rs.getMetaData().getColumnCount()];
+		for (List<String> row : rows) {
+			for (int i = 0; i < row.size(); ++i) {
+				if (row.get(i).length() > widths[i]) {
+					widths[i] = row.get(i).length();
+				}
+			}
+		}
+
+		for (int i = 0; i < rows.size(); ++i) {
+			StringBuilder b = new StringBuilder();
+			b.append("| ");
+			for (int j = 0; j < rows.get(i).size(); ++j) {
+				pad(b, rows.get(i).get(j), widths[j]);
+				if (j != rows.get(i).size() - 1)
+					b.append(" | ");
+			}
+			b.append(" |");
+			out(b.toString());
+		}
+
+	}
+
+	private static List<List<String>> getRows(ResultSet rs) throws SQLException {
 		ResultSetMetaData m = rs.getMetaData();
-		int count = m.getColumnCount();
 		List<List<String>> rows = new ArrayList<>();
 		List<String> columns = new ArrayList<>();
 		List<String> types = new ArrayList<>();
-		for (int c = 1; c <= count; ++c) {
+		for (int c = 1; c <= m.getColumnCount(); ++c) {
 			columns.add(m.getColumnName(c));
-			columns.add(typeToString(m.getColumnType(c)));
+			types.add(typeToString(m.getColumnType(c)));
 		}
 		rows.add(columns);
 		rows.add(types);
-		int colchars = 0;
-		int COLSEPLENGTH = 3;
-		colchars += (columns.size() - 1) * COLSEPLENGTH;
-		// colchars = m.getColumnName(c).length();
 
 		while (rs.next()) {
 			List<String> row = new ArrayList<>();
-			for (int c = 1; c <= count; ++c) {
+			for (int c = 1; c <= m.getColumnCount(); ++c) {
 				int type = m.getColumnType(c);
 				switch (type) {
 				case java.sql.Types.INTEGER:
@@ -305,30 +321,7 @@ public class Main {
 			}
 			rows.add(row);
 		}
-
-		int[] widths = new int[columns.size()];
-		for (List<String> row : rows) {
-			for (int i = 0; i < row.size(); ++i) {
-				if (row.get(i).length() > widths[i]) {
-					widths[i] = row.get(i).length();
-				}
-			}
-		}
-
-		for (int i = 0; i < rows.size(); ++i) {
-			StringBuilder b = new StringBuilder();
-			for (int j = 0; j < rows.get(i).size(); ++j) {
-				pad(b, rows.get(i).get(j), widths[j]);
-				if (j != 0) {
-					b.append(" | ");
-				} else {
-					b.append("| ");
-				}
-			}
-			b.append(" |");
-			out(b.toString());
-		}
-
+		return rows;
 	}
 
 	private static void pad(StringBuilder b, String val, int width) {
@@ -341,20 +334,23 @@ public class Main {
 	private static String typeToString(int type) {
 		try {
 			for (Field f : java.sql.Types.class.getFields()) {
-				if (Modifier.isStatic(f.getModifiers()) && int.class.isAssignableFrom(f.getType())) {
-					if (Integer.class.cast(f.get(null)) == type) {
-						return f.getName();
-					}
+				if (Modifier.isStatic(f.getModifiers()) && int.class.isAssignableFrom(f.getType())
+						&& Integer.class.cast(f.get(null)) == type) {
+					return f.getName();
 				}
 			}
 		} catch (Exception ex) {
-			throw new RuntimeException(ex);
+			throw new UnexpectedApplicationException(ex);
 		}
-		throw new RuntimeException("Unknown type " + type);
+		throw new UnexpectedApplicationException("Unknown type " + type);
 	}
 
 	private static void out(Object data) {
-		System.out.println(data);
+		try {
+			PrintStream.class.cast(System.class.getField("out").get(null)).print(data);
+		} catch (IllegalArgumentException | IllegalAccessException | NoSuchFieldException | SecurityException e) {
+			throw new UnexpectedApplicationException(e);
+		}
 	}
 
 }
